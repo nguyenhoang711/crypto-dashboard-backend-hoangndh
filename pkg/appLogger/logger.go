@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"crypto-dashboard/pkg/constants"
+	"crypto-dashboard/pkg/response"
+	"crypto-dashboard/pkg/settings"
 
 	"github.com/natefinch/lumberjack"
 	"go.uber.org/zap"
@@ -22,18 +24,18 @@ type (
 	}
 )
 
-func NewLogger(cfg *LogConfig) (*Logger, error) {
+func NewLogger(cfg *settings.LoggerSetting, serverConfig *settings.ServerSetting) (*Logger, *response.AppError) {
 	if cfg.LogDir == "" {
-		cfg.LogDir = filepath.Join("logs", cfg.Environment, cfg.ServiceName,
+		cfg.LogDir = filepath.Join("logs", serverConfig.Environment, serverConfig.ServiceName,
 			time.Now().Format("2006-01-02"))
 	}
 
 	if err := os.MkdirAll(cfg.LogDir, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to create log directory: %w", err)
+		return nil, response.ServerError("failed to create log directory")
 	}
 
-	logFile := filepath.Join(cfg.LogDir, fmt.Sprintf("%s.log", cfg.ServiceName))
-	errorFile := filepath.Join(cfg.LogDir, fmt.Sprintf("%s.error.log", cfg.ServiceName))
+	logFile := filepath.Join(cfg.LogDir, fmt.Sprintf("%s.log", serverConfig.ServiceName))
+	errorFile := filepath.Join(cfg.LogDir, fmt.Sprintf("%s.error.log", serverConfig.ServiceName))
 
 	accessLogger := &lumberjack.Logger{
 		Filename:   logFile,
@@ -82,7 +84,7 @@ func NewLogger(cfg *LogConfig) (*Logger, error) {
 
 	return &Logger{
 		Logger:      logger,
-		serviceName: cfg.ServiceName,
+		serviceName: serverConfig.ServiceName,
 	}, nil
 }
 
@@ -108,13 +110,13 @@ func (l *Logger) WithContext(ctx context.Context) *zap.Logger {
 	// Add correlation Id if exists
 
 	if cid, ok := ctx.Value(constants.CORRELATION_ID_KEY).(string); ok {
-		fields = append(fields, zap.String("correlation_id", cid))
+		fields = append(fields, zap.String("cid", cid))
 	}
 
 	// Add request Id if exists
 
 	if rid, ok := ctx.Value(constants.REQUEST_ID_KEY).(string); ok {
-		fields = append(fields, zap.String("request_id", rid))
+		fields = append(fields, zap.String("rid", rid))
 	}
 
 	return l.With(fields...)
